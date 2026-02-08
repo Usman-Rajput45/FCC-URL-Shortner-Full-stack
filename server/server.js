@@ -4,6 +4,7 @@ const cors = require('cors');
 const dns = require('dns');
 const url = require('url');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,9 +17,39 @@ app.use(bodyParser.json());
 // Serve static files from client folder
 app.use(express.static(path.join(__dirname, '../client')));
 
-// In-memory storage for URL mappings
+// Storage for URL mappings (persisted to disk)
+const dataFile = path.join(__dirname, 'urlDatabase.json');
 let urlDatabase = {};
 let shortUrlCounter = 1;
+
+const loadDatabase = () => {
+  try {
+    const raw = fs.readFileSync(dataFile, 'utf8');
+    const data = JSON.parse(raw);
+    if (data && typeof data === 'object') {
+      urlDatabase = data;
+      const keys = Object.keys(urlDatabase)
+        .map((key) => parseInt(key, 10))
+        .filter((num) => Number.isFinite(num));
+      if (keys.length > 0) {
+        shortUrlCounter = Math.max(...keys) + 1;
+      }
+    }
+  } catch {
+    urlDatabase = {};
+    shortUrlCounter = 1;
+  }
+};
+
+const saveDatabase = () => {
+  try {
+    fs.writeFileSync(dataFile, JSON.stringify(urlDatabase, null, 2));
+  } catch (err) {
+    console.error('Failed to persist URL database:', err.message);
+  }
+};
+
+loadDatabase();
 
 // Helper function to validate URL
 const isValidUrl = (urlString) => {
@@ -76,6 +107,7 @@ app.post('/api/shorturl', (req, res) => {
     // Create new short URL
     const shortUrl = shortUrlCounter++;
     urlDatabase[shortUrl] = originalUrl;
+    saveDatabase();
 
     res.json({
       original_url: originalUrl,
@@ -86,13 +118,19 @@ app.post('/api/shorturl', (req, res) => {
 
 // GET endpoint to redirect to original URL
 app.get('/api/shorturl/:shorturl', (req, res) => {
-  const shortUrl = parseInt(req.params.shorturl);
+  const shortUrl = parseInt(req.params.shorturl, 10);
+  let originalUrl = urlDatabase[shortUrl];
 
-  if (urlDatabase[shortUrl]) {
-    return res.redirect(urlDatabase[shortUrl]);
+  if (!originalUrl) {
+    loadDatabase();
+    originalUrl = urlDatabase[shortUrl];
   }
 
-  res.json({ error: 'Short URL not found' });
+  if (originalUrl) {
+    return res.redirect(originalUrl);
+  }
+
+  return res.json({ error: 'Short URL not found' });
 });
 
 // 404 handler

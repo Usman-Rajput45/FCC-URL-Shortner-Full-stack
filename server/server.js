@@ -99,14 +99,14 @@ app.post('/api/shorturl', (req, res) => {
       if (urlDatabase[key] === originalUrl) {
         return res.json({
           original_url: originalUrl,
-          short_url: parseInt(key)
+          short_url: parseInt(key, 10)
         });
       }
     }
 
     // Create new short URL
     const shortUrl = shortUrlCounter++;
-    urlDatabase[shortUrl] = originalUrl;
+    urlDatabase[shortUrl.toString()] = originalUrl;
     saveDatabase();
 
     res.json({
@@ -118,7 +118,7 @@ app.post('/api/shorturl', (req, res) => {
 
 // GET endpoint to redirect to original URL
 app.get('/api/shorturl/:shorturl', (req, res) => {
-  const shortUrl = parseInt(req.params.shorturl, 10);
+  const shortUrl = req.params.shorturl;
   let originalUrl = urlDatabase[shortUrl];
 
   if (!originalUrl) {

@@ -118,16 +118,22 @@ app.post('/api/shorturl', (req, res) => {
 
 // GET endpoint to redirect to original URL
 app.get('/api/shorturl/:shorturl', (req, res) => {
-  const shortUrl = req.params.shorturl;
-  let originalUrl = urlDatabase[shortUrl];
+  const shortUrlParam = req.params.shorturl;
+  const id = parseInt(shortUrlParam, 10);
+  if (!Number.isFinite(id)) {
+    return res.json({ error: 'Short URL not found' });
+  }
 
+  let originalUrl = urlDatabase[id.toString()];
   if (!originalUrl) {
     loadDatabase();
-    originalUrl = urlDatabase[shortUrl];
+    originalUrl = urlDatabase[id.toString()];
   }
 
   if (originalUrl) {
-    return res.redirect(originalUrl);
+    const trimmed = originalUrl.trim();
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+    return res.redirect(302, normalized);
   }
 
   return res.json({ error: 'Short URL not found' });
